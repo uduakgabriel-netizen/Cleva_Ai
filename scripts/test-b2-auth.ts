@@ -20,7 +20,7 @@ async function runB2Tests() {
 
   // 2. Test GET /api/auth/me without session (must return 401)
   console.log("\n[Test 2] Testing GET /api/auth/me without session...");
-  const authMeRes = await authMeHandler();
+  const authMeRes = await authMeHandler(new NextRequest("http://localhost:3000/api/auth/me"));
   const authMeJson = await authMeRes.json();
   console.log("Auth me status:", authMeRes.status, authMeJson);
   if (authMeRes.status !== 401) {

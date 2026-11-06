@@ -86,35 +86,23 @@ All financial transactions are strictly simulated.
   }
   ```
 
-### 5.3 User Identity & Balance Context
+### 5.3 User Identity
 - `GET /api/auth/me`
-- **Auth**: Session cookie via Clerk
-- **Response (200)**:
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Errors**:
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+- **Success Response (200 OK)**:
   ```json
   {
     "user": {
       "id": "cuid...",
       "email": "user@example.com",
-      "name": "User",
-      "demoOutcome": "SUCCESS"
-    },
-    "wallet": {
-      "currency": "NGN",
-      "availableBalanceKobo": 10000000
-    },
-    "card": {
-      "status": "ACTIVE",
-      "maskedPan": "5399 •••• •••• 4242",
-      "balanceCents": 0
+      "name": "Demo User",
+      "createdAt": "2026-11-06T12:00:00.000Z"
     }
   }
   ```
-- **Response (401)**:
-  ```json
-  {
-    "error": "Unauthorized or user provisioning pending"
-  }
-  ```
+- *Security Note: Never returns `clerkUserId`, `demoOutcome`, or any internal state.*
 
 ### 5.4 Create Payment Intent
 - `POST /api/payment-intents`
@@ -145,6 +133,8 @@ All financial transactions are strictly simulated.
       "interval": "MONTHLY",
       "confidence": 0.9,
       "parsedBy": "deterministic",
+      "reasoning": "Matched by text alias 'gemini advanced'",
+      "rawMerchant": "Pay for Gemini Advanced",
       "quoteId": "cuid...",
       "display": {
         "usd": "$19.99",
@@ -152,7 +142,8 @@ All financial transactions are strictly simulated.
         "feeNgn": "₦500",
         "totalNgn": "₦32,484",
         "fxRate": "₦1,600 / $1",
-        "expiresAt": "2026-11-06T20:55:00.000Z"
+        "expiresAt": "2026-11-06T20:55:00.000Z",
+        "walletAvailable": "₦100,000"
       },
       "quote": {
         "usdAmountCents": 1999,
@@ -168,6 +159,10 @@ All financial transactions are strictly simulated.
     }
   }
   ```
+- **Formatting & Field Rules**:
+  - `parsedBy: 'gemma' | 'deterministic'`: Indicates which parser produced the intent. Frontend can surface this to users (e.g. "AI interpreted your request") or hide it (both are valid).
+  - All fields in `display` are pre-formatted user-facing strings. All fields in `quote` are raw integers in minor units.
+  - Decimal convention: NGN amounts are formatted with thousands separators and no decimal places when whole (e.g. "₦32,484", "₦100,000", "₦500"). USD amounts are formatted to 2 decimal places (e.g. "$19.99", "$0.00").
 - **Invariants**:
   - Does NOT move money or create Ledger entries.
   - Wallet balance and Card balance remain strictly unchanged.
@@ -227,3 +222,205 @@ All financial transactions are strictly simulated.
   - Executes inside a single `SERIALIZABLE` database transaction.
   - Double-click with same `idempotencyKey` returns existing transaction with `idempotentReplay: true` and zero additional balance mutations.
   - On authorization decline, card funding is reversed and wallet is refunded inside the same transaction; net balance change is zero.
+
+### 5.7 Read Wallet & Ledger History
+- `GET /api/wallet`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Errors**:
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "simulation": "Simulation only — no real payment was made",
+    "wallet": {
+      "currency": "NGN",
+      "availableBalanceKobo": 10000000,
+      "display": "₦100,000",
+      "updatedAt": "2026-11-06T12:00:00.000Z"
+    },
+    "recentLedger": [
+      {
+        "id": "cuid...",
+        "account": "WALLET",
+        "type": "WALLET_DEBIT_FX",
+        "currency": "NGN",
+        "amount": -3248400,
+        "balanceAfter": 6751600,
+        "reference": "FX-cmw5...",
+        "intentId": "cmw5...",
+        "createdAt": "2026-11-06T12:05:00.000Z",
+        "display": {
+          "amount": "-₦32,484",
+          "balanceAfter": "₦67,516"
+        }
+      }
+    ]
+  }
+  ```
+- *Returns up to the 20 most recent ledger entries, newest first.*
+
+### 5.8 Read Virtual Card
+- `GET /api/card`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Errors**:
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "simulation": "Simulation only — no real payment was made",
+    "card": {
+      "provider": "MOCK_CLEVA",
+      "currency": "USD",
+      "status": "ACTIVE",
+      "maskedPan": "5399 •••• •••• 4242",
+      "balanceCents": 0,
+      "display": "$0.00"
+    }
+  }
+  ```
+- *Security Note: Never returns full PAN, CVV, expiry date, or internal provider tokens.*
+
+### 5.9 List User Transactions
+- `GET /api/transactions`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Query Parameters**:
+  - `limit`: optional integer, 1 to 50 (default: 20).
+  - `cursor`: optional string ID for cursor-based pagination.
+- **Errors**:
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "simulation": "Simulation only — no real payment was made",
+    "transactions": [
+      {
+        "id": "cuid...",
+        "status": "SUCCEEDED",
+        "receiptId": "CLV-MW5FT5H0-T93I",
+        "usdAmountCents": 1999,
+        "totalNgnKobo": 3248400,
+        "authorizationCode": "MOCK-XSSIMU92",
+        "declineReason": null,
+        "merchantName": "Gemini",
+        "planName": "Gemini Advanced",
+        "createdAt": "2026-11-06T12:05:00.000Z",
+        "display": {
+          "usd": "$19.99",
+          "totalNgn": "₦32,484"
+        }
+      }
+    ],
+    "nextCursor": null
+  }
+  ```
+
+### 5.10 Read Transaction Receipt
+- `GET /api/transactions/:id`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Errors**:
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+  - `404 TRANSACTION_NOT_FOUND`: Transaction does not exist OR belongs to another user (prevents cross-user ID enumeration).
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "simulation": "Simulation only — no real payment was made",
+    "transaction": {
+      "id": "cuid...",
+      "status": "SUCCEEDED",
+      "receiptId": "CLV-MW5FT5H0-T93I",
+      "authorizationCode": "MOCK-XSSIMU92",
+      "declineReason": null,
+      "usdAmountCents": 1999,
+      "totalNgnKobo": 3248400,
+      "merchant": {
+        "name": "Gemini",
+        "slug": "gemini"
+      },
+      "plan": {
+        "name": "Gemini Advanced",
+        "interval": "MONTHLY"
+      },
+      "quote": {
+        "usdAmountCents": 1999,
+        "fxRateNgnPerUsd": 1600,
+        "convertedNgnKobo": 3198400,
+        "feeNgnKobo": 50000,
+        "totalNgnKobo": 3248400,
+        "assumptions": "Illustrative demo FX rate ₦1600/$1 and flat ₦500 service fee. Quote valid 10 minutes."
+      },
+      "createdAt": "2026-11-06T12:05:00.000Z",
+      "display": {
+        "usd": "$19.99",
+        "convertedNgn": "₦31,984",
+        "feeNgn": "₦500",
+        "totalNgn": "₦32,484",
+        "fxRate": "₦1,600 / $1"
+      }
+    }
+  }
+  ```
+
+### 5.11 Public Merchant Catalogue
+- `GET /api/catalogue`
+- **Auth**: Public (unauthenticated, accessible pre-login for plan picker)
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "merchants": [
+      {
+        "slug": "gemini",
+        "name": "Gemini",
+        "plans": [
+          {
+            "planId": "gemini-advanced",
+            "planName": "Gemini Advanced",
+            "usdAmountCents": 1999,
+            "interval": "MONTHLY",
+            "display": {
+              "usd": "$19.99",
+              "billing": "$19.99 / month"
+            }
+          }
+        ]
+      }
+    ],
+    "simulation": "Catalogue prices are demo reference values, not live merchant prices."
+  }
+  ```
+
+### 5.12 Demo Controls (Outcome Override)
+- `PATCH /api/demo/controls`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Guard**: Gated by `process.env.DEMO_MODE === "true"`. Returns `404` when disabled.
+- **Request Body**:
+  ```json
+  {
+    "demoOutcome": "DECLINE"
+  }
+  ```
+  - `demoOutcome`: `"SUCCESS"` | `"DECLINE"` | `"INSUFFICIENT_FUNDS"`.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "user": {
+      "id": "cuid...",
+      "demoOutcome": "DECLINE"
+    }
+  }
+  ```
+- *Allows the demo presenter to simulate authorization failures and insufficient funds without altering ledger balances.*
+
+### 5.13 Demo Reset
+- `POST /api/demo/reset`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Guard**: Gated by `process.env.DEMO_MODE === "true"`. Returns `404` when disabled.
+- **Design Decision**: Option 2 (clears demo transaction, quote, intent, and ledger history for this user, then resets wallet to ₦100,000, card to $0, and demoOutcome to "SUCCESS").
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "ok": true,
+    "walletDisplay": "₦100,000",
+    "cardDisplay": "$0.00"
+  }
+  ```
+- *Reconciliation is strictly guaranteed to pass after reset (wallet = 10,000,000 kobo, card = $0, ledger rows = 0).*

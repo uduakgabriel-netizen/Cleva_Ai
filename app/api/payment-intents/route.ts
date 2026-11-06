@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
         interval: plan.interval,
         confidence: parsedIntent.confidence,
         parsedBy,
+        reasoning: parsedIntent.reasoning,
+        rawMerchant: parsedIntent.rawMerchant,
         status: "AWAITING_APPROVAL",
       },
     });
@@ -125,6 +127,7 @@ export async function POST(req: NextRequest) {
     totalNgn: formatDisplayNgn(quote.totalNgnKobo),
     fxRate: `₦${quote.fxRateNgnPerUsd.toLocaleString("en-US")} / $1`,
     expiresAt: quote.expiresAt.toISOString(),
+    walletAvailable: formatDisplayNgn(walletAvailable),
   };
 
   return NextResponse.json(
@@ -138,6 +141,8 @@ export async function POST(req: NextRequest) {
         interval: intent.interval,
         confidence: intent.confidence,
         parsedBy: intent.parsedBy,
+        reasoning: intent.reasoning,
+        rawMerchant: intent.rawMerchant,
         quoteId: quote.id,
         display,
         quote: {

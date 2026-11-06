@@ -64,6 +64,8 @@ model PaymentIntent {
   interval      String?
   confidence    Float
   parsedBy      String        @default("deterministic")
+  reasoning     String?
+  rawMerchant   String?
   status        String        @default("AWAITING_APPROVAL")
   createdAt     DateTime      @default(now())
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)

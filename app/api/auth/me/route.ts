@@ -1,31 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/require-user";
 
-export async function GET() {
-  const context = await requireUser();
+export async function GET(req?: NextRequest) {
+  const userContext = await requireUser(req);
 
-  if (!context) {
+  if (!userContext) {
     return NextResponse.json(
-      { error: "Unauthorized or user provisioning pending" },
+      { error: "Unauthorized" },
       { status: 401 }
     );
   }
 
-  return NextResponse.json({
-    user: {
-      id: context.user.id,
-      email: context.user.email,
-      name: context.user.name,
-      demoOutcome: context.user.demoOutcome,
+  const { user } = userContext;
+
+  return NextResponse.json(
+    {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt.toISOString(),
+      },
     },
-    wallet: {
-      currency: context.wallet.currency,
-      availableBalanceKobo: context.wallet.availableBalanceKobo,
-    },
-    card: {
-      status: context.card.status,
-      maskedPan: context.card.maskedPan,
-      balanceCents: context.card.balanceCents,
-    },
-  });
+    { status: 200 }
+  );
 }

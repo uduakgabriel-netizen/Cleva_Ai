@@ -51,6 +51,7 @@ export async function GET(
         totalNgn: formatDisplayNgn(quote.totalNgnKobo),
         fxRate: `₦${quote.fxRateNgnPerUsd.toLocaleString("en-US")} / $1`,
         expiresAt: quote.expiresAt.toISOString(),
+        walletAvailable: formatDisplayNgn(walletAvailable),
       }
     : null;
 
@@ -65,6 +66,8 @@ export async function GET(
         interval: intent.interval,
         confidence: intent.confidence,
         parsedBy: intent.parsedBy,
+        reasoning: intent.reasoning,
+        rawMerchant: intent.rawMerchant,
         quoteId: quote?.id ?? null,
         display,
         quote: quote
