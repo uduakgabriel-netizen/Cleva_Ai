@@ -25,11 +25,16 @@ export class AppError extends Error {
   public readonly statusCode: number;
   public readonly details?: unknown;
 
-  constructor(payload: AppErrorPayload) {
-    super(payload.message || payload.code);
+  constructor(payload: AppErrorPayload | ErrorCode) {
+    const isCode = typeof payload === "string";
+    const code = isCode ? payload : payload.code;
+    const message = isCode ? code : payload.message || code;
+    super(message);
     this.name = "AppError";
-    this.code = payload.code;
-    this.statusCode = payload.statusCode ?? ERROR_STATUS_MAP[payload.code];
-    this.details = payload.details;
+    this.code = code;
+    this.statusCode = isCode
+      ? ERROR_STATUS_MAP[code]
+      : payload.statusCode ?? ERROR_STATUS_MAP[code];
+    this.details = isCode ? undefined : payload.details;
   }
 }
