@@ -16,7 +16,7 @@ export type CataloguePlan = {
 export const CATALOGUE: readonly CataloguePlan[] = [
   {
     merchantSlug: "gemini",
-    merchantName: "Gemini Advanced",
+    merchantName: "Gemini",
     planId: "gemini-advanced",
     planName: "Gemini Advanced",
     usdAmountCents: 1999,
@@ -31,7 +31,7 @@ export const CATALOGUE: readonly CataloguePlan[] = [
   },
   {
     merchantSlug: "chatgpt",
-    merchantName: "ChatGPT Plus",
+    merchantName: "ChatGPT",
     planId: "chatgpt-plus",
     planName: "ChatGPT Plus",
     usdAmountCents: 2000,
@@ -41,8 +41,8 @@ export const CATALOGUE: readonly CataloguePlan[] = [
   },
   {
     merchantSlug: "canva",
-    merchantName: "Canva Pro",
-    planId: "canva-pro",
+    merchantName: "Canva",
+    planId: "canva-pro-monthly",
     planName: "Canva Pro",
     usdAmountCents: 1500,
     interval: "MONTHLY",
@@ -51,7 +51,7 @@ export const CATALOGUE: readonly CataloguePlan[] = [
   },
   {
     merchantSlug: "github",
-    merchantName: "GitHub Copilot Individual",
+    merchantName: "GitHub",
     planId: "copilot-individual",
     planName: "GitHub Copilot Individual",
     usdAmountCents: 1000,
@@ -61,7 +61,7 @@ export const CATALOGUE: readonly CataloguePlan[] = [
   },
   {
     merchantSlug: "coursera",
-    merchantName: "Coursera Plus",
+    merchantName: "Coursera",
     planId: "coursera-plus",
     planName: "Coursera Plus",
     usdAmountCents: 5900,

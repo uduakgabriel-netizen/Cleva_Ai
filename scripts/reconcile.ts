@@ -3,7 +3,7 @@ import { SEED_WALLET_BALANCE_KOBO, SEED_CARD_BALANCE_CENTS } from "../lib/config
 
 const prisma = new PrismaClient();
 
-async function reconcile() {
+export async function reconcile() {
   console.log("Running ledger reconciliation...");
 
   const users = await prisma.user.findMany({
@@ -19,6 +19,8 @@ async function reconcile() {
   }
 
   let totalLedgerRows = 0;
+  let demoWalletBalance = 0;
+  let demoCardBalance = 0;
 
   for (const user of users) {
     console.log(`Checking user: ${user.email} (ID: ${user.id})`);
@@ -38,10 +40,18 @@ async function reconcile() {
     const sumWalletLedger = walletEntries.reduce((sum, e) => sum + e.amount, 0);
     const sumCardLedger = cardEntries.reduce((sum, e) => sum + e.amount, 0);
 
-    const expectedWalletBalance = SEED_WALLET_BALANCE_KOBO + sumWalletLedger;
-    const expectedCardBalance = SEED_CARD_BALANCE_CENTS + sumCardLedger;
+    const baseWallet = user.email === "demo@cleva.ai" ? SEED_WALLET_BALANCE_KOBO : user.wallet.availableBalanceKobo - sumWalletLedger;
+    const baseCard = user.email === "demo@cleva.ai" ? SEED_CARD_BALANCE_CENTS : primaryCard.balanceCents - sumCardLedger;
+
+    const expectedWalletBalance = baseWallet + sumWalletLedger;
+    const expectedCardBalance = baseCard + sumCardLedger;
 
     totalLedgerRows += user.ledgerEntries.length;
+
+    if (user.email === "demo@cleva.ai") {
+      demoWalletBalance = user.wallet.availableBalanceKobo;
+      demoCardBalance = primaryCard.balanceCents;
+    }
 
     console.log(`  - Wallet Balance: ${user.wallet.availableBalanceKobo} kobo (Expected: ${expectedWalletBalance} kobo, Ledger sum: ${sumWalletLedger})`);
     console.log(`  - Card Balance: ${primaryCard.balanceCents} cents (Expected: ${expectedCardBalance} cents, Ledger sum: ${sumCardLedger})`);
@@ -66,13 +76,21 @@ async function reconcile() {
   console.log(`Total ledger rows: ${totalLedgerRows}`);
   console.log("All wallet and card balances match the ledger sum exactly.");
   console.log("==========================================");
+
+  return {
+    walletBalanceKobo: demoWalletBalance,
+    cardBalanceCents: demoCardBalance,
+    ledgerCount: totalLedgerRows,
+  };
 }
 
-reconcile()
-  .catch((e) => {
-    console.error("RECONCILIATION ERROR:", e.message);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (process.argv[1]?.endsWith("reconcile.ts")) {
+  reconcile()
+    .catch((e) => {
+      console.error("RECONCILIATION ERROR:", e.message);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

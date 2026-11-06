@@ -15,8 +15,11 @@ async function main() {
   // 1. Seed or find Demo User (idempotent)
   const user = await prisma.user.upsert({
     where: { email: DEMO_USER_EMAIL },
-    update: {},
+    update: {
+      clerkUserId: "user_demo_seed_clerk_id",
+    },
     create: {
+      clerkUserId: "user_demo_seed_clerk_id",
       email: DEMO_USER_EMAIL,
       name: "Demo User",
       demoOutcome: "SUCCESS",

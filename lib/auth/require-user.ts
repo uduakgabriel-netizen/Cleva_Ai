@@ -1,4 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
+import { NextRequest } from "next/server";
 import { prisma } from "../db";
 import type { User, Wallet, VirtualCard } from "@prisma/client";
 
@@ -15,8 +17,29 @@ export interface AuthenticatedContext {
  *
  * Returns { user, wallet, card } from the DB, or null if unauthenticated or pending provisioning.
  */
-export async function requireUser(): Promise<AuthenticatedContext | null> {
-  const { userId: clerkUserId } = await auth();
+export async function requireUser(req?: NextRequest): Promise<AuthenticatedContext | null> {
+  let clerkUserId: string | null = null;
+
+  try {
+    const session = await auth();
+    clerkUserId = session.userId;
+  } catch {
+    // Outside active Clerk context or in test scripts
+  }
+
+  // In non-production testing, allow simulated authenticated session via internal test header
+  if (!clerkUserId && process.env.NODE_ENV !== "production") {
+    if (req) {
+      clerkUserId = req.headers.get("x-cleva-test-session-clerk-id");
+    } else {
+      try {
+        const headerList = await headers();
+        clerkUserId = headerList.get("x-cleva-test-session-clerk-id");
+      } catch {
+        // outside headers context
+      }
+    }
+  }
 
   if (!clerkUserId) {
     return null;

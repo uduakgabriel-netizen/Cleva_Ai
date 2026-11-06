@@ -115,3 +115,68 @@ All financial transactions are strictly simulated.
     "error": "Unauthorized or user provisioning pending"
   }
   ```
+
+### 5.4 Create Payment Intent
+- `POST /api/payment-intents`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Request Body**:
+  ```json
+  {
+    "inputText": "Pay for Gemini Advanced",
+    "url": "https://gemini.google.com/advanced"
+  }
+  ```
+  - `inputText`: optional string, max 500 characters, trimmed.
+  - `url`: optional valid URL string, max 500 characters, trimmed.
+  - Refinement: At least one of `inputText` or `url` must be non-empty.
+- **Errors**:
+  - `400 VALIDATION`: Missing both inputs, invalid types, or invalid URL format.
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+  - `422 MERCHANT_UNSUPPORTED`: Merchant or URL host not found in catalogue. No intent created.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "simulation": "Simulation only — no real payment was made",
+    "intent": {
+      "id": "cuid...",
+      "status": "AWAITING_APPROVAL",
+      "merchant": "Gemini",
+      "plan": "Gemini Advanced",
+      "interval": "MONTHLY",
+      "confidence": 0.9,
+      "parsedBy": "deterministic",
+      "quoteId": "cuid...",
+      "display": {
+        "usd": "$19.99",
+        "convertedNgn": "₦31,984",
+        "feeNgn": "₦500",
+        "totalNgn": "₦32,484",
+        "fxRate": "₦1,600 / $1",
+        "expiresAt": "2026-11-06T20:55:00.000Z"
+      },
+      "quote": {
+        "usdAmountCents": 1999,
+        "fxRateNgnPerUsd": 1600,
+        "convertedNgnKobo": 3198400,
+        "feeNgnKobo": 50000,
+        "totalNgnKobo": 3248400,
+        "assumptions": "Rate fixed 1 USD = 1,600 NGN; flat fee 500 NGN; valid 10m",
+        "expiresAt": "2026-11-06T20:55:00.000Z"
+      },
+      "walletAvailable": 10000000,
+      "sufficientBalance": true
+    }
+  }
+  ```
+- **Invariants**:
+  - Does NOT move money or create Ledger entries.
+  - Wallet balance and Card balance remain strictly unchanged.
+
+### 5.5 Read Payment Intent
+- `GET /api/payment-intents/:id`
+- **Auth**: Protected (session via Clerk, resolved server-side with `requireUser()`)
+- **Errors**:
+  - `401 Unauthorized`: Missing or invalid Clerk session.
+  - `404 INTENT_NOT_FOUND`: Intent does not exist OR belongs to another user.
+- **Success Response (200 OK)**:
+  Same structure as `POST /api/payment-intents`, with optional `transaction` field if confirmed.

@@ -34,3 +34,15 @@ export function formatUsd(cents: number): string {
     maximumFractionDigits: 2,
   })}`;
 }
+
+export function formatDisplayNgn(kobo: number): string {
+  const ngn = kobo / 100;
+  if (kobo % 100 === 0) {
+    return `₦${ngn.toLocaleString("en-US")}`;
+  }
+  return `₦${ngn.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
