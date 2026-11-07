@@ -187,10 +187,11 @@ URL: ${input.url ?? "none"}`;
         const guarded = applyGuardrails(rawParsed);
         console.log(`[GemmaParser] Live Google AI parsed result -> merchantSlug: ${guarded.merchantSlug}, planId: ${guarded.planId}, confidence: ${guarded.confidence}`);
         return guarded;
-      } catch (err: any) {
+      } catch (err) {
         lastError = err;
-        if (attempt === 0 && (err.status === 503 || err.status === 429)) {
-          console.warn(`[GemmaParser] Transient ${err.status} from Google AI API, retrying in 1.2s...`);
+        const e = err as { status?: number };
+        if (attempt === 0 && (e.status === 503 || e.status === 429)) {
+          console.warn(`[GemmaParser] Transient ${e.status} from Google AI API, retrying in 1.2s...`);
           await new Promise((r) => setTimeout(r, 1200));
           continue;
         }
