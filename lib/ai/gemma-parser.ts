@@ -1,3 +1,7 @@
+import dns from "node:dns";
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 import type { IntentParser, ParsedIntent } from "./parser";
@@ -14,19 +18,21 @@ merchantSlug and planId, and put "merchant" in missingFields.
 Never invent a merchant, plan, price, or amount. Never guess.
 Return confidence 0.9+ only when the match is unambiguous.
 Return confidence below 0.5 when the merchant or plan is unclear.
+interval: "MONTHLY" for supported plans, or null.
 reasoning: one sentence, max 200 characters, explaining your decision.
 rawMerchant: copy the exact merchant phrase the user said, or null.`;
 
 export const gemmaOutputZodSchema = z.object({
   merchantSlug: z
     .enum(["gemini", "chatgpt", "canva", "github", "coursera"])
-    .nullable(),
-  planId: z.string().nullable(),
-  interval: z.enum(["MONTHLY", "YEARLY", "ONE_TIME"]).nullable(),
-  confidence: z.number(),
-  missingFields: z.array(z.enum(["merchant", "plan", "interval"])),
-  reasoning: z.string(),
-  rawMerchant: z.string().nullable(),
+    .nullable()
+    .optional(),
+  planId: z.string().nullable().optional(),
+  interval: z.enum(["MONTHLY", "YEARLY", "ONE_TIME"]).nullable().optional(),
+  confidence: z.number().optional().default(0.95),
+  missingFields: z.array(z.enum(["merchant", "plan", "interval"])).optional().default([]),
+  reasoning: z.string().optional().default(""),
+  rawMerchant: z.string().nullable().optional(),
 });
 
 const VALID_PLANS: Record<string, string[]> = {
@@ -46,10 +52,10 @@ export function applyGuardrails(rawParsed: unknown): ParsedIntent {
   }
 
   const data = validation.data;
-  let merchantSlug = data.merchantSlug;
-  let planId = data.planId;
-  let interval = data.interval;
-  const missingFields = [...data.missingFields];
+  let merchantSlug = data.merchantSlug ?? null;
+  let planId = data.planId ?? null;
+  let interval = data.interval ?? (merchantSlug ? "MONTHLY" : null);
+  const missingFields = data.missingFields ? [...data.missingFields] : [];
 
   // 2. Hallucination guard: merchantSlug must be in frozen 5
   if (merchantSlug && !(merchantSlug in VALID_PLANS)) {
@@ -104,7 +110,7 @@ export function applyGuardrails(rawParsed: unknown): ParsedIntent {
 export class GemmaParser implements IntentParser {
   private timeoutMs: number;
 
-  constructor(timeoutMs = 5000) {
+  constructor(timeoutMs = 8000) {
     this.timeoutMs = timeoutMs;
   }
 
@@ -140,9 +146,11 @@ export class GemmaParser implements IntentParser {
     input: { text?: string; url?: string },
     apiKey: string
   ): Promise<ParsedIntent> {
+    const modelName = process.env.GEMMA_MODEL || "gemini-flash-lite-latest";
+    console.log(`[GemmaParser] Calling live Google AI API (${modelName}) for input:`, JSON.stringify(input));
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: process.env.GEMMA_MODEL || "gemini-1.5-flash",
+      model: modelName,
       systemInstruction: GEMMA_SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: "application/json",
@@ -153,26 +161,43 @@ export class GemmaParser implements IntentParser {
 Text: ${input.text ?? "none"}
 URL: ${input.url ?? "none"}`;
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Gemma request timed out after ${this.timeoutMs}ms`)),
-        this.timeoutMs
-      )
-    );
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Gemma request timed out after ${this.timeoutMs}ms`)),
+            this.timeoutMs
+          )
+        );
 
-    const apiPromise = model.generateContent(userContent);
-    const result = await Promise.race([apiPromise, timeoutPromise]);
-    const responseText = result.response.text();
+        const apiPromise = model.generateContent(userContent);
+        const result = await Promise.race([apiPromise, timeoutPromise]);
+        const responseText = result.response.text();
+        console.log(`[GemmaParser] Live Google AI API raw response:`, responseText.replace(/\n/g, " "));
 
-    let rawParsed: unknown;
-    try {
-      rawParsed = JSON.parse(responseText);
-    } catch {
-      console.error("Gemma returned non-JSON text:", responseText);
-      throw new Error("Gemma response could not be parsed as JSON");
+        let rawParsed: unknown;
+        try {
+          rawParsed = JSON.parse(responseText);
+        } catch {
+          console.error("Gemma returned non-JSON text:", responseText);
+          throw new Error("Gemma response could not be parsed as JSON");
+        }
+
+        const guarded = applyGuardrails(rawParsed);
+        console.log(`[GemmaParser] Live Google AI parsed result -> merchantSlug: ${guarded.merchantSlug}, planId: ${guarded.planId}, confidence: ${guarded.confidence}`);
+        return guarded;
+      } catch (err: any) {
+        lastError = err;
+        if (attempt === 0 && (err.status === 503 || err.status === 429)) {
+          console.warn(`[GemmaParser] Transient ${err.status} from Google AI API, retrying in 1.2s...`);
+          await new Promise((r) => setTimeout(r, 1200));
+          continue;
+        }
+        throw err;
+      }
     }
-
-    return applyGuardrails(rawParsed);
+    throw lastError;
   }
 
   private simulateGemmaInference(input: { text?: string; url?: string }): ParsedIntent {

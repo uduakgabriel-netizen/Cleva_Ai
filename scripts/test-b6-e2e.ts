@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 import { prisma } from "../lib/db";
 import { POST as paymentIntentsPost } from "../app/api/payment-intents/route";
 import { getIntentParser } from "../lib/ai/parser";

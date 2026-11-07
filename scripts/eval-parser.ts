@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 import { GemmaParser } from "../lib/ai/gemma-parser";
 import { DeterministicParser } from "../lib/ai/deterministic-parser";
 import { FallbackParser } from "../lib/ai/fallback-parser";
@@ -176,6 +179,7 @@ async function runEval() {
     console.log(
       `| ${String(tc.id).padStart(2)} | ${inputDesc} | ${expSlug} | ${actSlug} | ${planIdStr} | ${confStr} | ${priceStr} | ${resStr}   |`
     );
+    await new Promise((r) => setTimeout(r, 600));
   }
 
   const scorePct = Math.round((passedCount / EVAL_CASES.length) * 100);
