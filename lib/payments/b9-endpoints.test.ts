@@ -151,7 +151,28 @@ describe("Stage B9 — Read Endpoints & Demo Controls", () => {
     expect(ownerJson.transaction.display.usd).toBe("$19.99");
     expect(ownerJson.transaction.display.totalNgn).toBe("₦32,484");
 
-    // Cross-user fetch -> 404 (NOT 403)
+    // Cross-user fetch -> 404 (NOT 403). The "other" user must exist (with wallet+card) so
+    // requireUser() authenticates them — otherwise this would only prove the 401 (unauthenticated) path.
+    const otherUser = await prisma.user.upsert({
+      where: { clerkUserId: "user_other_tenant_test" },
+      update: {},
+      create: { clerkUserId: "user_other_tenant_test", email: "other-tenant@cleva.ai", name: "Other Tenant" },
+    });
+    await prisma.wallet.upsert({
+      where: { userId: otherUser.id },
+      update: {},
+      create: { userId: otherUser.id, currency: "NGN", availableBalanceKobo: 0 },
+    });
+    await prisma.virtualCard.upsert({
+      where: { id: `${otherUser.id}-seed-card` },
+      update: {},
+      create: {
+        id: `${otherUser.id}-seed-card`,
+        userId: otherUser.id,
+        maskedPan: "5399 •••• •••• 0000",
+      },
+    });
+
     const otherReq = reqWithAuth(`http://localhost:3000/api/transactions/${tx.id}`, "GET", undefined, "user_other_tenant_test");
     const otherRes = await transactionDetailGet(otherReq, { params: Promise.resolve({ id: tx.id }) });
     expect(otherRes.status).toBe(404);
