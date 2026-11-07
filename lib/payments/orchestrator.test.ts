@@ -5,6 +5,23 @@ import { buildQuote } from "../pricing/quote";
 import { AppError } from "../errors";
 import { reconcile } from "../../scripts/reconcile";
 
+let cachedGeminiMerchant: { id: string; slug: string } | null = null;
+
+async function getGeminiMerchant() {
+  if (cachedGeminiMerchant) return cachedGeminiMerchant;
+  cachedGeminiMerchant = await prisma.merchant.upsert({
+    where: { slug: "gemini" },
+    update: {},
+    create: {
+      slug: "gemini",
+      name: "Gemini",
+      supported: true,
+    },
+    select: { id: true, slug: true },
+  });
+  return cachedGeminiMerchant;
+}
+
 // Test fixture helper to set up isolated test environment
 async function createTestFixture(options?: {
   demoOutcome?: string;
@@ -17,16 +34,8 @@ async function createTestFixture(options?: {
 
   const randomSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-  // 1. Merchant
-  const merchant = await prisma.merchant.upsert({
-    where: { slug: "gemini" },
-    update: {},
-    create: {
-      slug: "gemini",
-      name: "Gemini",
-      supported: true,
-    },
-  });
+  // 1. Merchant (cached to reduce network round-trips)
+  const merchant = await getGeminiMerchant();
 
   // 2. User
   const user = await prisma.user.create({
@@ -88,13 +97,15 @@ async function createTestFixture(options?: {
   });
 
   const cleanup = async () => {
-    await prisma.transaction.deleteMany({ where: { userId: user.id } });
-    await prisma.ledgerEntry.deleteMany({ where: { userId: user.id } });
-    await prisma.quote.deleteMany({ where: { intentId: intent.id } });
-    await prisma.paymentIntent.deleteMany({ where: { userId: user.id } });
-    await prisma.virtualCard.deleteMany({ where: { userId: user.id } });
-    await prisma.wallet.deleteMany({ where: { userId: user.id } });
-    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.$transaction([
+      prisma.transaction.deleteMany({ where: { userId: user.id } }),
+      prisma.ledgerEntry.deleteMany({ where: { userId: user.id } }),
+      prisma.quote.deleteMany({ where: { intentId: intent.id } }),
+      prisma.paymentIntent.deleteMany({ where: { userId: user.id } }),
+      prisma.virtualCard.deleteMany({ where: { userId: user.id } }),
+      prisma.wallet.deleteMany({ where: { userId: user.id } }),
+      prisma.user.delete({ where: { id: user.id } }),
+    ]);
   };
 
   return { user, merchant, intent, quote, cleanup };

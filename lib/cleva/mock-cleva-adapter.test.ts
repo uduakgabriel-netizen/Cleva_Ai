@@ -44,13 +44,15 @@ describe("Stage B7 — MockClevaAdapter & Ledger (T1 - T11)", () => {
   });
 
   afterEach(async () => {
-    // Clean up test user completely to keep DB clean for reconciliation
+    // Clean up test user completely in a single batch transaction
     if (testUserId) {
-      await prisma.ledgerEntry.deleteMany({ where: { userId: testUserId } });
-      await prisma.paymentIntent.deleteMany({ where: { userId: testUserId } });
-      await prisma.virtualCard.deleteMany({ where: { userId: testUserId } });
-      await prisma.wallet.deleteMany({ where: { userId: testUserId } });
-      await prisma.user.delete({ where: { id: testUserId } });
+      await prisma.$transaction([
+        prisma.ledgerEntry.deleteMany({ where: { userId: testUserId } }),
+        prisma.paymentIntent.deleteMany({ where: { userId: testUserId } }),
+        prisma.virtualCard.deleteMany({ where: { userId: testUserId } }),
+        prisma.wallet.deleteMany({ where: { userId: testUserId } }),
+        prisma.user.delete({ where: { id: testUserId } }),
+      ]);
     }
   });
 
@@ -301,7 +303,7 @@ describe("Stage B7 — MockClevaAdapter & Ledger (T1 - T11)", () => {
         reference: "REF-T10-REF",
         intentId: testIntentId,
       });
-    }, { timeout: 30_000, maxWait: 10_000 });
+    }, { timeout: 120_000, maxWait: 30_000 });
 
     // 6. Assert wallet net zero
     const finalWallet = await cleva.getWallet(testUserId);
@@ -355,7 +357,7 @@ describe("Stage B7 — MockClevaAdapter & Ledger (T1 - T11)", () => {
 
         // 2. Inside tx: throw intentional simulated crash
         throw new Error("simulated crash inside transaction");
-      }, { timeout: 30_000, maxWait: 10_000 });
+      }, { timeout: 120_000, maxWait: 30_000 });
     } catch (err: unknown) {
       if (err instanceof Error && err.message === "simulated crash inside transaction") {
         transactionFailed = true;

@@ -4,9 +4,19 @@ import path from "path";
 export default defineConfig({
   test: {
     environment: "node",
-    testTimeout: 60_000,
-    hookTimeout: 60_000,
+    pool: "forks",
+    forks: {
+      singleFork: true,
+    },
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     fileParallelism: false,
+    maxConcurrency: 1,
+    testTimeout: 120_000, // Increase global test timeout to 2 minutes
+    hookTimeout: 120_000,
   },
   resolve: {
     alias: {

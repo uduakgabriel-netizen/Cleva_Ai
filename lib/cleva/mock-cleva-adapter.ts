@@ -85,17 +85,10 @@ export class MockClevaAdapter implements ClevaAdapter {
       },
     });
 
-    const intent = intentId
-      ? await tx.paymentIntent.findUnique({
-          where: { id: intentId },
-          select: { id: true },
-        })
-      : null;
-
     await tx.ledgerEntry.create({
       data: {
         userId,
-        intentId: intent?.id ?? null,
+        intentId: intentId ?? null,
         account: "WALLET",
         type: "WALLET_DEBIT_FX",
         currency: "NGN",
@@ -149,17 +142,10 @@ export class MockClevaAdapter implements ClevaAdapter {
       },
     });
 
-    const intent = intentId
-      ? await tx.paymentIntent.findUnique({
-          where: { id: intentId },
-          select: { id: true },
-        })
-      : null;
-
     await tx.ledgerEntry.create({
       data: {
         userId,
-        intentId: intent?.id ?? null,
+        intentId: intentId ?? null,
         account: "CARD",
         type: "CARD_FUND",
         currency: "USD",
@@ -213,17 +199,10 @@ export class MockClevaAdapter implements ClevaAdapter {
       },
     });
 
-    const intent = intentId
-      ? await tx.paymentIntent.findUnique({
-          where: { id: intentId },
-          select: { id: true },
-        })
-      : null;
-
     await tx.ledgerEntry.create({
       data: {
         userId,
-        intentId: intent?.id ?? null,
+        intentId: intentId ?? null,
         account: "CARD",
         type: "CARD_FUND_REVERSAL",
         currency: "USD",
@@ -270,17 +249,10 @@ export class MockClevaAdapter implements ClevaAdapter {
       },
     });
 
-    const intent = intentId
-      ? await tx.paymentIntent.findUnique({
-          where: { id: intentId },
-          select: { id: true },
-        })
-      : null;
-
     await tx.ledgerEntry.create({
       data: {
         userId,
-        intentId: intent?.id ?? null,
+        intentId: intentId ?? null,
         account: "WALLET",
         type: "WALLET_REFUND",
         currency: "NGN",
