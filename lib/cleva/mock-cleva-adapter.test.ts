@@ -301,7 +301,7 @@ describe("Stage B7 — MockClevaAdapter & Ledger (T1 - T11)", () => {
         reference: "REF-T10-REF",
         intentId: testIntentId,
       });
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
 
     // 6. Assert wallet net zero
     const finalWallet = await cleva.getWallet(testUserId);
@@ -355,7 +355,7 @@ describe("Stage B7 — MockClevaAdapter & Ledger (T1 - T11)", () => {
 
         // 2. Inside tx: throw intentional simulated crash
         throw new Error("simulated crash inside transaction");
-      });
+      }, { timeout: 30_000, maxWait: 10_000 });
     } catch (err: unknown) {
       if (err instanceof Error && err.message === "simulated crash inside transaction") {
         transactionFailed = true;

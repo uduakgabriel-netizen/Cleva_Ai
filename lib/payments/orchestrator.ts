@@ -128,7 +128,7 @@ export async function confirmPaymentIntent(input: {
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        timeout: 15_000,
+        timeout: 30_000,
       }
     );
   } catch (error: unknown) {

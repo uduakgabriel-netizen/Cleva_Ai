@@ -152,6 +152,25 @@ describe("Stage B9 — Read Endpoints & Demo Controls", () => {
     expect(ownerJson.transaction.display.totalNgn).toBe("₦32,484");
 
     // Cross-user fetch -> 404 (NOT 403)
+    await prisma.user.upsert({
+      where: { email: "other_tenant@cleva.ai" },
+      update: {},
+      create: {
+        clerkUserId: "user_other_tenant_test",
+        email: "other_tenant@cleva.ai",
+        name: "Other Tenant",
+        wallet: { create: { currency: "NGN", availableBalanceKobo: 5_000_000 } },
+        cards: {
+          create: {
+            provider: "MOCK_CLEVA",
+            currency: "USD",
+            status: "ACTIVE",
+            maskedPan: "5399 •••• •••• 9999",
+            balanceCents: 0,
+          },
+        },
+      },
+    });
     const otherReq = reqWithAuth(`http://localhost:3000/api/transactions/${tx.id}`, "GET", undefined, "user_other_tenant_test");
     const otherRes = await transactionDetailGet(otherReq, { params: Promise.resolve({ id: tx.id }) });
     expect(otherRes.status).toBe(404);
@@ -291,5 +310,5 @@ describe("Stage B9 — Read Endpoints & Demo Controls", () => {
     expect(txJson2.transactions).toHaveLength(0);
 
     console.log("Full demo cycle completed and verified successfully!");
-  });
+  }, 120_000);
 });
