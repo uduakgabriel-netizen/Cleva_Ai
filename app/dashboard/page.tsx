@@ -2,32 +2,44 @@ import { WalletSummary } from "@/components/wallet-summary";
 import { VirtualCard } from "@/components/virtual-card";
 import { SimulationBadge } from "@/components/simulation-badge";
 import { TransactionList } from "@/components/transaction-list";
+import { requireUser } from "@/lib/auth/require-user";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-async function getDashboardData() {
-  const [walletRes, cardRes, txRes] = await Promise.all([
-    fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/wallet`, {
-      cache: "no-store",
-    }),
-    fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/card`, {
-      cache: "no-store",
-    }),
-    fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/transactions?limit=5`, {
-      cache: "no-store",
-    }),
-  ]);
-
-  const wallet = (await walletRes.json()).wallet;
-  const card = (await cardRes.json()).card;
-  const transactions = (await txRes.json()).transactions;
-
-  return { wallet, card, transactions };
-}
-
 export default async function DashboardPage() {
-  const { wallet, card, transactions } = await getDashboardData();
+  const userContext = await requireUser();
+  if (!userContext) {
+    redirect("/sign-in");
+  }
+
+  const { user, wallet, card } = userContext;
+
+  const rawTransactions = await prisma.transaction.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: {
+      intent: {
+        include: {
+          merchant: true,
+        },
+      },
+    },
+  });
+
+  const transactions = rawTransactions.map((tx) => ({
+    id: tx.id,
+    status: tx.status,
+    receiptId: tx.receiptId,
+    usdAmountCents: tx.usdAmountCents,
+    totalNgnKobo: tx.totalNgnKobo,
+    merchantName: tx.intent?.merchant?.name ?? tx.intent?.planName ?? "Unknown",
+    planName: tx.intent?.planName ?? "Unknown",
+    createdAt: tx.createdAt.toISOString(),
+  }));
 
   return (
     <div className="space-y-6">
@@ -59,7 +71,7 @@ export default async function DashboardPage() {
             </p>
             <Link
               href="/pay"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors text-center"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors text-center block"
             >
               Start a payment
             </Link>

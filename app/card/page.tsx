@@ -1,32 +1,30 @@
 import { WalletSummary } from "@/components/wallet-summary";
 import { VirtualCard } from "@/components/virtual-card";
 import { SimulationBadge } from "@/components/simulation-badge";
+import { requireUser } from "@/lib/auth/require-user";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-async function getCardData() {
-  const [walletRes, cardRes] = await Promise.all([
-    fetch("/api/wallet", { cache: "no-store" }),
-    fetch("/api/card", { cache: "no-store" }),
-  ]);
-  const wallet = (await walletRes.json()).wallet;
-  const card = (await cardRes.json()).card;
-  return { wallet, card };
-}
-
 export default async function CardPage() {
-  const { wallet, card } = await getCardData();
+  const userContext = await requireUser();
+  if (!userContext) {
+    redirect("/sign-in");
+  }
+
+  const { wallet, card } = userContext;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 py-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Card & Wallet</h1>
-        <a
+        <Link
           href="/dashboard"
           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
         >
           ← Back to dashboard
-        </a>
+        </Link>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">

@@ -1,4 +1,9 @@
 import { ConfirmButton } from "@/components/confirm-button";
+import { requireUser } from "@/lib/auth/require-user";
+import { prisma } from "@/lib/db";
+import { formatDisplayNgn } from "@/lib/money";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -7,34 +12,62 @@ type QuotePageProps = {
 };
 
 export default async function QuotePage({ params }: QuotePageProps) {
+  const userContext = await requireUser();
+  if (!userContext) {
+    redirect("/sign-in");
+  }
+
   const { id } = await params;
 
-  const res = await fetch(`/api/payment-intents/${id}`, { cache: "no-store" });
-  if (!res.ok) {
-    const err = await res.json();
+  const intent = await prisma.paymentIntent.findFirst({
+    where: {
+      id,
+      userId: userContext.user.id,
+    },
+    include: {
+      quote: true,
+      merchant: true,
+      transaction: true,
+    },
+  });
+
+  if (!intent || !intent.quote) {
     return (
       <div className="max-w-md mx-auto py-10">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <h2 className="text-lg font-bold text-red-900">Unable to load quote</h2>
-          <p className="text-sm text-red-700 mt-2">{err.message ?? "Unknown error"}</p>
+          <p className="text-sm text-red-700 mt-2">Payment intent or quote not found</p>
         </div>
       </div>
     );
   }
 
-  const data = await res.json();
-  const { intent } = data;
+  const quote = intent.quote;
+  const walletAvailable = userContext.wallet.availableBalanceKobo;
+  const sufficientBalance = walletAvailable >= quote.totalNgnKobo;
+
+  const display = {
+    usd: `$${(quote.usdAmountCents / 100).toFixed(2)}`,
+    convertedNgn: formatDisplayNgn(quote.convertedNgnKobo),
+    feeNgn: formatDisplayNgn(quote.feeNgnKobo),
+    totalNgn: formatDisplayNgn(quote.totalNgnKobo),
+    fxRate: `₦${quote.fxRateNgnPerUsd.toLocaleString("en-US")} / $1`,
+    expiresAt: quote.expiresAt.toISOString(),
+    walletAvailable: formatDisplayNgn(walletAvailable),
+  };
+
+  const merchantName = intent.merchant?.name ?? intent.rawMerchant ?? "Merchant";
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 py-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Review &amp; Confirm</h1>
-        <a
+        <Link
           href="/dashboard"
           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
         >
           ← Back to dashboard
-        </a>
+        </Link>
       </div>
 
       <div className="rounded-2xl border bg-white dark:bg-zinc-900 p-6 shadow-sm space-y-4">
@@ -43,7 +76,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
             Merchant
           </p>
           <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            {intent.merchant}
+            {merchantName}
           </p>
         </div>
 
@@ -52,7 +85,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
             Plan
           </p>
           <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            {intent.plan} ({intent.interval})
+            {intent.planName || "Custom"} {intent.interval ? `(${intent.interval})` : ""}
           </p>
         </div>
 
@@ -62,7 +95,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               Price
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {intent.display.usd}
+              {display.usd}
             </p>
           </div>
           <div>
@@ -70,7 +103,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               FX rate
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {intent.display.fxRate}
+              {display.fxRate}
             </p>
           </div>
         </div>
@@ -81,7 +114,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               Conversion
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {intent.display.convertedNgn}
+              {display.convertedNgn}
             </p>
           </div>
           <div>
@@ -89,7 +122,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               Fee
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {intent.display.feeNgn}
+              {display.feeNgn}
             </p>
           </div>
           <div>
@@ -97,29 +130,29 @@ export default async function QuotePage({ params }: QuotePageProps) {
               Total
             </p>
             <p className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-              {intent.display.totalNgn}
+              {display.totalNgn}
             </p>
           </div>
         </div>
 
         <div className="border-t pt-4">
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-            Available balance: {intent.display.walletAvailable}
+            Available balance: {display.walletAvailable}
           </p>
           <div className="flex items-center gap-2">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[0.7rem] font-medium ${
-                intent.sufficientBalance
+                sufficientBalance
                   ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
                   : "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
               }`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  intent.sufficientBalance ? "bg-green-600 dark:bg-green-500" : "bg-red-600 dark:bg-red-500"
+                  sufficientBalance ? "bg-green-600 dark:bg-green-500" : "bg-red-600 dark:bg-red-500"
                 }`}
               />
-              {intent.sufficientBalance ? "Sufficient balance" : "Insufficient balance"}
+              {sufficientBalance ? "Sufficient balance" : "Insufficient balance"}
             </span>
           </div>
         </div>
@@ -137,9 +170,9 @@ export default async function QuotePage({ params }: QuotePageProps) {
 
       <ConfirmButton
         intentId={intent.id}
-        quoteId={intent.quoteId}
-        sufficientBalance={intent.sufficientBalance}
-        totalNgn={intent.display.totalNgn}
+        quoteId={quote.id}
+        sufficientBalance={sufficientBalance}
+        totalNgn={display.totalNgn}
       />
     </div>
   );

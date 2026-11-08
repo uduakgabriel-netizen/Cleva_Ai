@@ -1,6 +1,7 @@
 import Link from "next/link";
-
-import { PaymentStatus } from "@/components/payment-status";
+import { requireUser } from "@/lib/auth/require-user";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -9,22 +10,35 @@ type ResultPageProps = {
 };
 
 export default async function ResultPage({ params }: ResultPageProps) {
+  const userContext = await requireUser();
+  if (!userContext) {
+    redirect("/sign-in");
+  }
+
   const { id } = await params;
 
-  const res = await fetch(`/api/payment-intents/${id}`, { cache: "no-store" });
-  if (!res.ok) {
+  const intent = await prisma.paymentIntent.findFirst({
+    where: {
+      id,
+      userId: userContext.user.id,
+    },
+    include: {
+      transaction: true,
+    },
+  });
+
+  if (!intent) {
     return (
       <div className="max-w-md mx-auto py-10">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <h2 className="text-lg font-bold text-red-900">Unable to load result</h2>
-          <p className="text-sm text-red-700 mt-2">Transaction not found</p>
+          <p className="text-sm text-red-700 mt-2">Payment intent not found</p>
         </div>
       </div>
     );
   }
 
-  const json = await res.json();
-  const tx = json.intent.transaction;
+  const tx = intent.transaction;
 
   if (!tx) {
     return (
@@ -39,12 +53,12 @@ export default async function ResultPage({ params }: ResultPageProps) {
     <div className="max-w-2xl mx-auto space-y-6 py-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Payment Result</h1>
-        <a
+        <Link
           href="/dashboard"
           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
         >
           ← Back to dashboard
-        </a>
+        </Link>
       </div>
 
       <div className="rounded-2xl border bg-white dark:bg-zinc-900 p-6 shadow-sm space-y-4">
