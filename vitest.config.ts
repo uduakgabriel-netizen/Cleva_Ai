@@ -5,14 +5,6 @@ export default defineConfig({
   test: {
     environment: "node",
     pool: "forks",
-    forks: {
-      singleFork: true,
-    },
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
     fileParallelism: false,
     maxConcurrency: 1,
     testTimeout: 120_000, // Increase global test timeout to 2 minutes
